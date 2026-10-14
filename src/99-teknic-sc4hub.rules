@@ -1,0 +1,10 @@
+# Teknic SC4-Hub (2890:0213): move the hub from the generic cdc_acm driver to
+# the Exar driver (cdc_xr_usb_serial), which sFoundation needs. The hub then
+# appears as /dev/ttyXRUSB0. cdc_acm claims the hub whenever it reconnects
+# (plug-in, power change, reboot), so this runs on each of those.
+#
+# Install:
+#   sudo cp 99-teknic-sc4hub.rules /etc/udev/rules.d/ && sudo udevadm control --reload
+ACTION=="bind", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_interface", DRIVER=="cdc_acm", \
+  ATTRS{idVendor}=="2890", ATTRS{idProduct}=="0213", ATTR{bInterfaceNumber}=="00", \
+  RUN+="/bin/sh -c '/sbin/modprobe xr_usb_serial_common; echo -n %k > /sys/bus/usb/drivers/cdc_acm/unbind; echo -n %k > /sys/bus/usb/drivers/cdc_xr_usb_serial/bind'"
