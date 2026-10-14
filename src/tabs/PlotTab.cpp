@@ -18,7 +18,7 @@
 #include <algorithm>
 #include <cmath>
 
-static const size_t MAX_HISTORY = 100000;  // ~80 min at 20 Hz
+static const size_t MAX_HISTORY = 100000;  // ~2.5 h at ~10 Hz
 static const int REDRAW_MS = 100;
 
 PlotTab::PlotTab(MotorWorker *worker, QWidget *parent) : QWidget(parent) {
@@ -72,7 +72,7 @@ PlotTab::PlotTab(MotorWorker *worker, QWidget *parent) : QWidget(parent) {
     bottom->addWidget(m_pause);
     bottom->addWidget(clearBtn);
     bottom->addStretch();
-    bottom->addWidget(new QLabel("Polled at ~20 Hz; not a high-speed scope."));
+    bottom->addWidget(new QLabel("Polled at ~10 Hz; not a high-speed scope."));
     bottom->addWidget(csvBtn);
     connect(m_window, &QSpinBox::valueChanged, this, &PlotTab::redraw);
     connect(m_pause, &QCheckBox::toggled, this, &PlotTab::redraw);
