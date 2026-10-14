@@ -1,6 +1,6 @@
 # ClearPath
 
-Tools and Documentation for Working with Teknic ClearPath CPM-SCSK Motors
+Tools and Documentation for Working with Teknic ClearPath Motors
 
 This repo collects what's needed to set up and drive Teknic ClearPath-SC
 (software-controlled) servo motors from Linux:
@@ -20,8 +20,6 @@ Advanced firmware) connected through an **SC4-Hub** over USB, on Ubuntu with Qt 
 | [`docs/`](docs/) | Teknic user manuals and the sFoundation API reference |
 | [`cad/`](cad/) | STEP models of the motor and SC4-Hub, plus the NEMA 23 dimensional drawing |
 | [`bin/`](bin/) | Teknic's Windows installers (ClearView, ClearPath MSP, USB port driver) |
-| `build/` | cpview build output (git-ignored) |
-| `*/hold/` | the original tarballs and extra CAD formats (git-ignored) |
 
 ### Hardware overview
 
@@ -35,6 +33,8 @@ The hub needs its own 24 VDC logic supply, and each motor needs DC bus power. Do
 the bus supply for logic power, even if it's 24 V (*ClearPath-SC User Manual*, "Auxiliary
 (24V) Logic Power Supply"). The hub also has a Global Stop input and two brake/general
 purpose outputs.
+
+I'm using the Teknic IPC-5 75VDC power supply unit for the motor bus power.
 
 The motor part number decodes as follows (manual, Appendix H). `CPM-SCSK-2311S-RLSA`
 means:
@@ -99,9 +99,16 @@ the port):
 sudo sh -c 'echo -n 1-1:1.0 > /sys/bus/usb/drivers/cdc_acm/unbind; echo -n 1-1:1.0 > /sys/bus/usb/drivers/cdc_xr_usb_serial/bind'
 ```
 
+N.B. There was a typo in the driver source code that required editing before it will compile.
+
+Edit 'xr_usb_serial_common.c' around line 1798:
+```bash
+sed -i 's/wCountyCode0/wCountryCode0/g' xr_usb_serial_common.c
+```
+
 ## cpview: Linux Version of the Teknic ClearView Windows Application
 
-cpview is a Qt 6 desktop app that covers the core ClearView workflow for
+'cpview' is a Qt 6 desktop app that covers the core ClearView workflow for
 ClearPath-SC motors (SCSK/SCHP) on an SC4-Hub. It doesn't support ClearPath-MC/SD
 motors; for those, use ClearPath MSP on Windows. The source is in [`src/`](src/), and
 [`src/README.md`](src/README.md) also describes it.
@@ -283,7 +290,6 @@ direction" on an axis with limited travel.
 | File | Contents |
 |---|---|
 | [`docs/Clearpath-SC User Manual.pdf`](docs/Clearpath-SC%20User%20Manual.pdf) | **ClearPath-SC user manual, v1.45 (Feb 2026)**: wiring, power supplies, SC4-Hub, ClearView, specifications, part-number key. Use this one. |
-| [`docs/clearpathscsk_series.pdf`](docs/clearpathscsk_series.pdf) | An older edition of the same manual (v1.36, Mar 2020) |
 | [`docs/clearpath_user_manual.pdf`](docs/clearpath_user_manual.pdf) | Manual for the *other* ClearPath families (MCVC, MCPV, SDSK, SDHP, v3.27). It doesn't apply to SC motors |
 | [`docs/S-FoundationRef.chm`](docs/S-FoundationRef.chm) | sFoundation API reference: classes, register fields, and what each alert means, with remedies. Open it with `kchmviewer` or `xchm`. It's identical to `Linux_Software/doc/S-FoundationRef.chm` |
 | [`docs/Readme.txt`](docs/Readme.txt) | Teknic's note about the API reference |
@@ -308,11 +314,7 @@ can't do, such as auto-tuning and firmware updates.
 | [`cad/23xx CPM Dimensional Drawing.pdf`](cad/23xx%20CPM%20Dimensional%20Drawing.pdf) | Dimensional drawing for NEMA 23 ClearPath motors, with the "L" body length for each model |
 | `cad/CPM-231x_-LS.STEP` | STEP (AP203) model of a NEMA 23, 82 mm (231x) motor with the standard 3/8" shaft |
 | `cad/CPM-231x_-Q.STEP` | The same motor with the 1/4" shaft option |
-| `cad/CPM-_ _ _ _ -231x_-LS.STEP`, `cad/CPM-_ _ _ _ -231x_-Q.STEP` | Byte-for-byte copies of the two files above |
 | `cad/SC4-HUB .STEP` | STEP model of the SC4-Hub |
-
-`cad/hold/` (git-ignored) holds the same models as IGES, Parasolid (`.x_t`), eDrawings
-(`.EPRT`), and SolidWorks (`.SLDPRT`) files.
 
 ## Troubleshooting
 
