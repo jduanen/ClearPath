@@ -23,7 +23,7 @@ Teknic's sFoundation library (`../Linux_Software/sFoundation`).
   pause and CSV export.
 
 Not available, because sFoundation has no public API for them: auto-tune, firmware
-update, and the high-speed hardware scope. The plot tab polls at about 20 Hz.
+update, and the high-speed hardware scope. The plot tab polls at about 10 Hz.
 
 ## Setup
 1. Serial permissions: `sudo usermod -aG dialout $USER`, then log out and back in.
