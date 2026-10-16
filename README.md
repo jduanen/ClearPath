@@ -135,14 +135,46 @@ motors; for those, use ClearPath MSP on Windows. The source is in [`src/`](src/)
   torque limit, software limits, and position tracking limit, and has a raw parameter
   table covering every `CPM_P_*` register. Double-click a value to write it, after a
   confirmation prompt.
-- **Plot tab:** rolling plot of measured/commanded position, tracking error, velocity,
-  and torque, with an adjustable time window, pause, clear, and CSV export.
+- **Plot tab:** plot of measured/commanded position, tracking error, velocity, and
+  torque, with ClearView-style triggering (see [Plot triggers](#plot-triggers)), an
+  adjustable time window, a dashed trigger marker at t = 0, Clear, and CSV export.
 - **Log panel:** timestamped messages. Errors, and any new or changed motor alert
   (e.g. `Node alert: BusVoltageLow`), appear in red and in the status bar.
 
 Not available, because sFoundation has no public API for them: auto-tuning, firmware
 updates, and ClearView's high-speed scope. For those, use ClearView on Windows. The
-live readouts and plot come from polling, at roughly 10 updates per second.
+live readouts and plot come from polling, at 20 updates per second.
+
+### Plot triggers
+
+The Plot tab's trigger controls follow ClearView's soft scope (ClearPath-SC User
+Manual, "ClearView Soft Scope"), but triggers are detected in software from the 20 Hz
+polled samples, not by the motor.
+
+| Mode | Behavior |
+|---|---|
+| Auto | Rolling view of the last *Window* seconds; no triggering |
+| Normal | Waits for the trigger, captures one window, shows it, and re-arms. The last capture stays on screen until the next one completes |
+| Single | Like Normal, but switches to Stop after one capture |
+| Force (button) | Triggers on the newest sample, captures one window, then switches to Stop. Works from any mode |
+| Stop | Freezes the display (the rolling view or the last capture). Data is still recorded for CSV export |
+
+| Trigger on | Fires when |
+|---|---|
+| Start of positive/negative/any command | Commanded motion begins (commanded velocity becomes nonzero or commanded position starts changing) |
+| End of positive/negative/any command | Commanded motion ends |
+| End of positive/negative/any settled move | Move Done turns on; the direction is that of the last commanded motion |
+| Alert (shutdown or exception) | An alert appears |
+| Rising/falling slope | The selected trace crosses *Level* upward/downward; the crossing time is interpolated between samples |
+
+*Position* puts the trigger point at 10%, 50%, or 90% of the window; captured plots
+show time relative to the trigger. The status label shows Rolling, Armed, Triggered,
+or Stopped. Changing any trigger setting re-arms.
+
+Limitations: events are resolved only to the 50 ms poll period, and a move shorter
+than one poll can be missed entirely. ClearView's "Voltage/Torque/Speed Limit" source
+isn't available, since sFoundation doesn't report it. CSV export always writes the
+whole recorded history, not just the current capture.
 
 ### Build
 
@@ -182,7 +214,7 @@ cmake --build build -j
 | File | Role |
 |---|---|
 | `main.cpp` | Starts the application and registers the custom types passed between threads |
-| `MotorWorker.*` | Makes every sFoundation call on a single worker thread. It polls the selected node (50 ms between polls) and emits `Snapshot`s; errors become `error()` signals |
+| `MotorWorker.*` | Makes every sFoundation call on a single worker thread. It polls the selected node every 50 ms (a poll takes ~25 ms on the wire) and emits `Snapshot`s; errors become `error()` signals |
 | `MainWindow.*` | Toolbar, node tree, tabs, and log; owns the worker thread |
 | `tabs/InfoStatusTab.*`, `MotionTab.*`, `ConfigTab.*`, `PlotTab.*` | The four tabs. They reach the worker through `onWorker()`, which makes queued calls |
 | `CpmParams.inc` | ID, name, and description of every parameter, generated from the `_cpmParams` enum in `inc/inc-pub/pubCpmRegs.h` |

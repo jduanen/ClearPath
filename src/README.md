@@ -19,11 +19,14 @@ Teknic's sFoundation library (`../Linux_Software/sFoundation`).
 - **Config tab:** load/save `.mtr` config files (compatible with ClearView), restore
   factory defaults, user ID/description, torque/software/tracking limits, and a raw
   parameter table (every `CPM_P_*` register; double-click a value to write it).
-- **Plot tab:** rolling plot of position, velocity, torque, and tracking error, with
-  pause and CSV export.
+- **Plot tab:** plot of position, velocity, torque, and tracking error, with CSV
+  export and ClearView-style triggering: Auto, Normal, Single, Force, and Stop modes;
+  triggers on the start or end of a move, a settled move, an alert, or a rising/falling
+  slope through a level; trigger position 10/50/90%. Triggers are detected in software
+  from the polled samples (see "Plot triggers" in the top-level README).
 
 Not available, because sFoundation has no public API for them: auto-tune, firmware
-update, and the high-speed hardware scope. The plot tab polls at about 10 Hz.
+update, and the high-speed hardware scope. The plot tab polls at 20 Hz.
 
 ## Setup
 1. Serial permissions: `sudo usermod -aG dialout $USER`, then log out and back in.
@@ -59,7 +62,8 @@ Close ClearView and any SDK examples first; only one program can own the hub por
 
 ## Code layout
 - `MotorWorker.*`: every sFoundation call runs on one worker thread. It polls the
-  selected node every 50 ms and emits a `Snapshot`.
+  selected node on a fixed 50 ms period (a poll takes ~25 ms on the wire) and emits
+  a `Snapshot`.
 - `MainWindow.*`: toolbar, node tree, tabs, and log.
 - `tabs/*`: the four tabs. They call the worker through `onWorker()` (queued).
 - `CpmParams.inc`: generated from the `_cpmParams` enum in
