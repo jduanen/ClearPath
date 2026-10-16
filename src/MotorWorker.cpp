@@ -1,6 +1,8 @@
 #include "MotorWorker.h"
 
+#include <QElapsedTimer>
 #include <QTimer>
+#include <algorithm>
 #include <cmath>
 #include <string>
 #include <vector>
@@ -10,12 +12,13 @@
 
 using namespace sFnd;
 
-static const int POLL_MS = 50;
+static const int POLL_MS = 50;  // poll period; one poll takes ~25 ms on the wire
 static const int MAX_POLL_FAILURES = 3;
 
 MotorWorker::MotorWorker(QObject *parent) : QObject(parent) {
     m_timer = new QTimer(this);  // child: moves to the worker thread with us
     m_timer->setSingleShot(true);
+    m_timer->setTimerType(Qt::PreciseTimer);
     connect(m_timer, &QTimer::timeout, this, &MotorWorker::poll);
 }
 
@@ -142,6 +145,8 @@ void MotorWorker::selectNode(int port, int node) {
 
 void MotorWorker::poll() {
     if (!m_node) return;
+    QElapsedTimer pollTime;
+    pollTime.start();
     Snapshot s;
     bool ok = guarded("Poll", [&] {
         INode &n = *m_node;
@@ -209,7 +214,8 @@ void MotorWorker::poll() {
         closePorts();
         return;
     }
-    m_timer->start(POLL_MS);
+    // Fixed period: subtract the time this poll spent on the wire.
+    m_timer->start(std::max<qint64>(0, POLL_MS - pollTime.elapsed()));
 }
 
 void MotorWorker::enable(bool on) {
