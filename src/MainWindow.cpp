@@ -3,6 +3,7 @@
 #include <QAction>
 #include <QDateTime>
 #include <QDockWidget>
+#include <QEvent>
 #include <QHeaderView>
 #include <QPlainTextEdit>
 #include <QSplitter>
@@ -10,6 +11,7 @@
 #include <QTabWidget>
 #include <QToolBar>
 #include <QTreeWidget>
+#include <QVBoxLayout>
 
 #include "tabs/ConfigTab.h"
 #include "tabs/InfoStatusTab.h"
@@ -39,6 +41,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_worker(new Moto
     m_estopAct->setToolTip("Abrupt E-stop of all nodes (Esc)");
     if (QWidget *w = tb->widgetForAction(m_estopAct))
         w->setStyleSheet("QToolButton { background: #c62828; color: white; font-weight: bold; padding: 4px 12px; }");
+    tb->addSeparator();
+    m_plotWinAct = tb->addAction("Plot Window");
+    m_plotWinAct->setCheckable(true);
+    m_plotWinAct->setToolTip("Show the plot in its own window");
 
     // Node tree + tabs
     m_tree = new QTreeWidget;
@@ -60,6 +66,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_worker(new Moto
     split->setSizes({240, 960});
     setCentralWidget(split);
 
+    // Separate plot window; the PlotTab is moved into it while detached
+    m_plotWin = new QWidget(this, Qt::Window);
+    m_plotWin->setWindowTitle("cpview - Plot");
+    m_plotWin->resize(1000, 650);
+    new QVBoxLayout(m_plotWin);
+    m_plotWin->addAction(m_estopAct);  // Esc works from the plot window too
+    m_plotWin->installEventFilter(this);
+
     // Log dock
     m_log = new QPlainTextEdit;
     m_log->setReadOnly(true);
@@ -79,6 +93,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_worker(new Moto
         onWorker(m_worker, [w = m_worker, on] { w->enable(on); });
     });
     connect(m_estopAct, &QAction::triggered, this, [this] { onWorker(m_worker, [w = m_worker] { w->eStop(); }); });
+    connect(m_plotWinAct, &QAction::toggled, this, &MainWindow::setPlotDetached);
     connect(m_tree, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem *item) {
         if (!item || !item->data(0, Qt::UserRole + 1).isValid()) return;
         int port = item->data(0, Qt::UserRole).toInt();
@@ -117,7 +132,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), m_worker(new Moto
         m_tree->clear();
         setConnectedUi(false);
     });
-    connect(m_worker, &MotorWorker::nodeSelected, this, [this] { m_tabs->setEnabled(true); });
+    connect(m_worker, &MotorWorker::nodeSelected, this, [this] {
+        m_tabs->setEnabled(true);
+        m_plotTab->setEnabled(true);
+    });
     connect(m_worker, &MotorWorker::snapshot, this, [this](const Snapshot &s) {
         m_enableAct->setChecked(s.enabled);
         m_enableAct->setText(s.enabled ? "Disable" : "Enable");
@@ -151,5 +169,27 @@ void MainWindow::setConnectedUi(bool connected) {
         m_enableAct->setChecked(false);
         m_enableAct->setText("Enable");
         m_tabs->setEnabled(false);
+        m_plotTab->setEnabled(false);
     }
+}
+
+void MainWindow::setPlotDetached(bool detached) {
+    if (detached) {
+        m_tabs->removeTab(m_tabs->indexOf(m_plotTab));
+        m_plotWin->layout()->addWidget(m_plotTab);
+        m_plotTab->show();
+        m_plotWin->show();
+        m_plotWin->raise();
+        m_plotWin->activateWindow();
+    } else {
+        m_plotWin->hide();
+        m_tabs->addTab(m_plotTab, "Plot");
+    }
+}
+
+// Closing the plot window puts the plot back in its tab.
+bool MainWindow::eventFilter(QObject *obj, QEvent *ev) {
+    if (obj == m_plotWin && ev->type() == QEvent::Close)
+        m_plotWinAct->setChecked(false);
+    return QMainWindow::eventFilter(obj, ev);
 }

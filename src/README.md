@@ -23,7 +23,9 @@ Teknic's sFoundation library (`../Linux_Software/sFoundation`).
   export and ClearView-style triggering: Auto, Normal, Single, Force, and Stop modes;
   triggers on the start or end of a move, a settled move, an alert, or a rising/falling
   slope through a level; trigger position 10/50/90%. Triggers are detected in software
-  from the polled samples (see "Plot triggers" in the top-level README).
+  from the polled samples (see "Plot triggers" in the top-level README). The toolbar's
+  **Plot Window** button moves the plot into its own window (`Esc` still E-stops there);
+  closing that window or unchecking the button puts it back in its tab.
 
 Not available, because sFoundation has no public API for them: auto-tune, firmware
 update, and the high-speed hardware scope. The plot tab polls at 20 Hz.

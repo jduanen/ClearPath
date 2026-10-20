@@ -24,12 +24,14 @@ public:
 private:
     void appendLog(const QString &msg, bool isError = false);
     void setConnectedUi(bool connected);
+    void setPlotDetached(bool detached);
+    bool eventFilter(QObject *obj, QEvent *ev) override;
 
     QThread m_thread;
     MotorWorker *m_worker;
     QStringList m_ports;
 
-    QAction *m_scanAct, *m_connectAct, *m_disconnectAct, *m_enableAct, *m_estopAct;
+    QAction *m_scanAct, *m_connectAct, *m_disconnectAct, *m_enableAct, *m_estopAct, *m_plotWinAct;
     QTreeWidget *m_tree;
     QTabWidget *m_tabs;
     QPlainTextEdit *m_log;
@@ -37,4 +39,5 @@ private:
     MotionTab *m_motionTab;
     ConfigTab *m_configTab;
     PlotTab *m_plotTab;
+    QWidget *m_plotWin;
 };
