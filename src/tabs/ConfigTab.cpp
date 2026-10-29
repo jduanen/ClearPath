@@ -13,6 +13,8 @@
 #include <QTableWidget>
 #include <QVBoxLayout>
 
+#include "tabs/HomingDialog.h"
+
 namespace {
 struct ParamDef { int id; const char *name; const char *desc; };
 const ParamDef PARAMS[] = {
@@ -98,6 +100,14 @@ ConfigTab::ConfigTab(MotorWorker *worker, QWidget *parent) : QWidget(parent), m_
         l.softLimit2 = m_soft2->value();
         l.posnTrackingLimit = m_trkLimit->value();
         onWorker(w, [w, l] { w->setLimits(l); });
+    });
+
+    auto *homingBtn = new QPushButton("Homing setup...");
+    limForm->addRow(homingBtn);
+    connect(homingBtn, &QPushButton::clicked, this, [=] {
+        auto *dlg = new HomingDialog(w, this);
+        dlg->setAttribute(Qt::WA_DeleteOnClose);
+        dlg->open();
     });
 
     // Raw parameter table

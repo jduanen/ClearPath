@@ -33,6 +33,7 @@ add_executable(cpview
     tabs/InfoStatusTab.cpp
     tabs/MotionTab.cpp
     tabs/ConfigTab.cpp
+    tabs/HomingDialog.cpp
     tabs/PlotTab.cpp
 )
 

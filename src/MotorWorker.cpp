@@ -279,6 +279,60 @@ void MotorWorker::startHoming() {
     });
 }
 
+// Velocity/accel parameters are in counts/s and counts/s^2; the hard-stop
+// torque limit is in amps (scaled to % of CPM_P_DRV_I_MAX, as ClearView does).
+void MotorWorker::readHoming() {
+    if (!m_node || m_info.resolution == 0) return;
+    HomingSettings h;
+    bool ok = guarded("Read homing setup", [&] {
+        INode &n = *m_node;
+        IInfoEx &ex = n.Info.Ex;
+        double rpmPerCps = 60.0 / m_info.resolution;
+        double iMax = ex.Parameter(nodeparam(CPM_P_DRV_I_MAX));
+        mnAppConfigReg app = n.Setup.Ex.App.Value();
+        mnHwConfigReg hw = n.Setup.Ex.HW.Value();
+        h.cw = app.cpm.HomingDirection;
+        h.offsetSameDir = app.cpm.OffsetMoveInHomeDir;
+        h.hardStop = hw.cpm.HomingStyle == _cpmHwConfigFlds::HOME_TO_HARDSTOP;
+        h.extended = hw.cpm.HomingExtended != _cpmHwConfigFlds::USE_LEGACY;
+        h.velRpm = std::abs(ex.Parameter(nodeparam(CPM_P_APP_HOMING_VEL))) * rpmPerCps;
+        h.accRpmS = ex.Parameter(nodeparam(CPM_P_APP_HOMING_ACCEL)) * rpmPerCps;
+        h.offsetCnts = ex.Parameter(nodeparam(CPM_P_APP_HOMING_OFFSET));
+        h.hardStopTrqPct = iMax > 0 ? 100.0 * ex.Parameter(nodeparam(CPM_P_DRV_HARDSTOP_TRQ_LIM)) / iMax : 0;
+        h.inputBits = unsigned(ex.Parameter(nodeparam(CPM_P_XPS_FEAT_AT_HOME))) & 0xffff;
+    });
+    if (ok) emit homingRead(h);
+}
+
+void MotorWorker::writeHoming(const HomingSettings &h) {
+    if (!m_node || m_info.resolution == 0) return;
+    guarded("Write homing setup", [&] {
+        INode &n = *m_node;
+        IInfoEx &ex = n.Info.Ex;
+        double cpsPerRpm = m_info.resolution / 60.0;
+        double iMax = ex.Parameter(nodeparam(CPM_P_DRV_I_MAX));
+        ex.Parameter(nodeparam(CPM_P_APP_HOMING_VEL), h.velRpm * cpsPerRpm);
+        ex.Parameter(nodeparam(CPM_P_APP_HOMING_ACCEL), h.accRpmS * cpsPerRpm);
+        ex.Parameter(nodeparam(CPM_P_APP_HOMING_OFFSET), std::round(h.offsetCnts));
+        if (iMax > 0)
+            ex.Parameter(nodeparam(CPM_P_DRV_HARDSTOP_TRQ_LIM), h.hardStopTrqPct / 100.0 * iMax);
+        // No home input when homing to a hard stop
+        ex.Parameter(nodeparam(CPM_P_XPS_FEAT_AT_HOME), h.hardStop ? 0 : h.inputBits);
+
+        mnAppConfigReg dir{}, offs{};
+        dir.cpm.HomingDirection = 1;
+        offs.cpm.OffsetMoveInHomeDir = 1;
+        h.cw ? n.Setup.Ex.App.Set(dir) : n.Setup.Ex.App.Clear(dir);
+        h.offsetSameDir ? n.Setup.Ex.App.Set(offs) : n.Setup.Ex.App.Clear(offs);
+
+        mnHwConfigReg style{};
+        style.cpm.HomingStyle = _cpmHwConfigFlds::HOME_TO_HARDSTOP;
+        h.hardStop ? n.Setup.Ex.HW.Set(style) : n.Setup.Ex.HW.Clear(style);
+        emit log("Homing setup written");
+    });
+    readHoming();
+}
+
 void MotorWorker::emitLimits() {
     if (!m_node) return;
     MotorLimits l;

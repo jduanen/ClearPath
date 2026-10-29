@@ -19,6 +19,9 @@ Teknic's sFoundation library (`../Linux_Software/sFoundation`).
 - **Config tab:** load/save `.mtr` config files (compatible with ClearView), restore
   factory defaults, user ID/description, torque/software/tracking limits, and a raw
   parameter table (every `CPM_P_*` register; double-click a value to write it).
+  **Homing setup...** opens a ClearView-style dialog: direction, homing velocity and
+  acceleration, target (input A or B turning on or off, or a hard stop with a torque
+  limit), and the offset move's distance and direction.
 - **Plot tab:** plot of position, velocity, torque, and tracking error, with CSV
   export and ClearView-style triggering: Auto, Normal, Single, Force, and Stop modes;
   triggers on the start or end of a move, a settled move, an alert, or a rising/falling
@@ -67,6 +70,6 @@ Close ClearView and any SDK examples first; only one program can own the hub por
   selected node on a fixed 50 ms period (a poll takes ~25 ms on the wire) and emits
   a `Snapshot`.
 - `MainWindow.*`: toolbar, node tree, tabs, and log.
-- `tabs/*`: the four tabs. They call the worker through `onWorker()` (queued).
+- `tabs/*`: the four tabs and the Homing Setup dialog. They call the worker through `onWorker()` (queued).
 - `CpmParams.inc`: generated from the `_cpmParams` enum in
   `inc/inc-pub/pubCpmRegs.h` (id, name, description).

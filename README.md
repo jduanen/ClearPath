@@ -117,7 +117,9 @@ motors; for those, use ClearPath MSP on Windows. The source is in [`src/`](src/)
 
 - **Toolbar:** Scan for hubs, Connect/Disconnect, Enable/Disable, and **E-STOP**
   (`Esc`). E-STOP sends an abrupt e-stop to every node; press *Clear Alerts* to resume.
-  Enable also clears alerts and node stops before enabling.
+  Enable also clears alerts and node stops before enabling. **Plot Window** moves the
+  plot into its own window (`Esc` still E-stops there); closing that window or
+  unchecking the button puts it back in its tab.
 - **Node tree:** every port and node found, labeled with model, serial number, and user
   ID. Selecting a node shows it in the tabs.
 - **Status tab:** model, type, serial number, firmware/hardware versions, resolution,
@@ -134,7 +136,8 @@ motors; for those, use ClearPath MSP on Windows. The source is in [`src/`](src/)
   factory defaults, and edit the user ID and description. It also sets the global
   torque limit, software limits, and position tracking limit, and has a raw parameter
   table covering every `CPM_P_*` register. Double-click a value to write it, after a
-  confirmation prompt.
+  confirmation prompt. **Homing setup...** opens ClearView's Homing Setup dialog (see
+  [Homing setup](#homing-setup)).
 - **Plot tab:** plot of measured/commanded position, tracking error, velocity, and
   torque, with ClearView-style triggering (see [Plot triggers](#plot-triggers)), an
   adjustable time window, a dashed trigger marker at t = 0, Clear, and CSV export.
@@ -175,6 +178,50 @@ Limitations: events are resolved only to the 50 ms poll period, and a move short
 than one poll can be missed entirely. ClearView's "Voltage/Torque/Speed Limit" source
 isn't available, since sFoundation doesn't report it. CSV export always writes the
 whole recorded history, not just the current capture.
+
+### Homing setup
+
+The Config tab's **Homing setup...** button opens a copy of ClearView's Homing Setup
+dialog (ClearPath-SC User Manual, "Homing Setup"). It reads the node's settings when it
+opens and writes them when you press OK. Use the Motion tab's **Start Homing** to run
+the homing sequence.
+
+| Dialog setting | Stored in | Notes |
+|---|---|---|
+| Homing direction CCW (+) / CW (−) | `CPM_P_APP_CONFIG_REG` bit 19 (`HomingDirection`) | Set means CW |
+| Max velocity (RPM) | `CPM_P_APP_HOMING_VEL` (512) | Stored as a positive value in counts/s; RPM = counts/s × 60 / counts per rev |
+| Max accel (RPM/s) | `CPM_P_APP_HOMING_ACCEL` (514) | Stored in counts/s²; same scaling |
+| Target: change of input / hard stop | `CPM_P_HW_CONFIG_REG` bit 14 (`HomingStyle`) | Set means hard stop |
+| Home input (A or B, turns on or off) | `CPM_P_XPS_FEAT_AT_HOME` (563) | See the table below. Set to 0 for a hard stop |
+| Homing torque limit (% of max) | `CPM_P_DRV_HARDSTOP_TRQ_LIM` (363) | Stored in amps; % = amps × 100 / `CPM_P_DRV_I_MAX` (the same scale as the torque unit "% of max") |
+| Offset distance (cnts) | `CPM_P_APP_HOMING_OFFSET` (513) | Always positive. The label beside it shows the resulting direction |
+| Offset direction reverse of / same as home | `CPM_P_APP_CONFIG_REG` bit 16 (`OffsetMoveInHomeDir`) | Set means same as home |
+
+sFoundation doesn't document the encoding of `CPM_P_XPS_FEAT_AT_HOME`. These values
+come from comparing `.mtr` files that ClearView saved with each input option
+(`XPSFeatAtHome` in the file). Each value is the matching status-register input bit
+(`InA`, `InB`, `InvInA`, `InvInB`; bits 22–25) shifted down by 16. `XPSInvertIn` stays 0
+for every option.
+
+| Home input | `CPM_P_XPS_FEAT_AT_HOME` |
+|---|---|
+| A input turns on | `0x0040` |
+| B input turns on | `0x0080` |
+| A input turns off | `0x0100` |
+| B input turns off | `0x0200` |
+
+Notes:
+- If the node's input value is not one of these four, no input is selected, and the
+  dialog asks you to choose one.
+- If the node uses an extended homing mode (`HomingExtended` in the hardware config,
+  e.g. home to shaft position), the dialog warns that it doesn't show it, and leaves the
+  mode as it is.
+- ClearView's Homing Actions window (simulated homing, "make current position home")
+  is not reproduced.
+- Untested: whether ClearView also clears the home input when you choose Hard Stop.
+  cpview clears it, so a leftover input can't end a hard-stop home early.
+- Untested: whether the node accepts these writes while it's enabled. If it refuses,
+  the error appears in the log; disable the motor and try again.
 
 ### Build
 
@@ -217,6 +264,7 @@ cmake --build build -j
 | `MotorWorker.*` | Makes every sFoundation call on a single worker thread. It polls the selected node every 50 ms (a poll takes ~25 ms on the wire) and emits `Snapshot`s; errors become `error()` signals |
 | `MainWindow.*` | Toolbar, node tree, tabs, and log; owns the worker thread |
 | `tabs/InfoStatusTab.*`, `MotionTab.*`, `ConfigTab.*`, `PlotTab.*` | The four tabs. They reach the worker through `onWorker()`, which makes queued calls |
+| `tabs/HomingDialog.*` | Homing Setup dialog, opened from the Config tab. The worker reads and writes it with `readHoming()`/`writeHoming()` |
 | `CpmParams.inc` | ID, name, and description of every parameter, generated from the `_cpmParams` enum in `inc/inc-pub/pubCpmRegs.h` |
 | `99-teknic-sc4hub.rules` | udev rule that moves the hub from `cdc_acm` to the Exar driver (see [USB Driver Setup](#usb-driver-setup)) |
 | `CMakeLists.txt` | Build file. Finds Qt 6 Widgets and Charts and sFoundation, and sets the rpath |

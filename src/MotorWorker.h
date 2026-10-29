@@ -23,6 +23,22 @@ struct MotorLimits {
     double softLimit1 = 0, softLimit2 = 0, posnTrackingLimit = 0;
 };
 
+// CPM_P_XPS_FEAT_AT_HOME values, decoded from ClearView-saved .mtr files
+// (status register bits InA..InvInB, shifted down 16).
+enum : unsigned { HOME_IN_A_ON = 0x0040, HOME_IN_B_ON = 0x0080, HOME_IN_A_OFF = 0x0100, HOME_IN_B_OFF = 0x0200 };
+
+// Homing setup, as in ClearView's Homing Setup dialog.
+struct HomingSettings {
+    bool cw = false;              // homing direction: CW (-) if set, else CCW (+)
+    double velRpm = 0, accRpmS = 0;
+    bool hardStop = false;        // home to a hard stop; otherwise to a change of input
+    double hardStopTrqPct = 0;    // torque limit while homing to a hard stop, % of max
+    double offsetCnts = 0;        // offset move after the homing target is found
+    bool offsetSameDir = false;   // offset move in the homing direction
+    unsigned inputBits = 0;       // CPM_P_XPS_FEAT_AT_HOME: the HOME_IN_* input that ends homing
+    bool extended = false;        // an extended homing mode (e.g. shaft position) is set
+};
+
 // One poll of the selected node.
 struct Snapshot {
     double tMs = 0;
@@ -39,6 +55,7 @@ struct Snapshot {
 
 Q_DECLARE_METATYPE(NodeInfo)
 Q_DECLARE_METATYPE(MotorLimits)
+Q_DECLARE_METATYPE(HomingSettings)
 Q_DECLARE_METATYPE(Snapshot)
 
 // Owns all sFoundation access. Lives on its own QThread; the GUI talks to it
@@ -63,6 +80,8 @@ public slots:
     void moveVel(double vel);
     void movePosn(int target, bool absolute, bool dwell, bool repeat, bool reciprocate);
     void startHoming();
+    void readHoming();
+    void writeHoming(const HomingSettings &h);
     void setLimits(const MotorLimits &lim);
     void setUnits(int velUnit, int accUnit, int trqUnit);
 
@@ -81,6 +100,7 @@ signals:
     void disconnected();
     void nodeSelected(const NodeInfo &info);
     void limitsRead(const MotorLimits &lim);
+    void homingRead(const HomingSettings &h);
     void snapshot(const Snapshot &s);
     void paramValue(int id, double value, bool ok);
 

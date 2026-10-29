@@ -9,6 +9,7 @@ int main(int argc, char *argv[]) {
     qRegisterMetaType<NodeInfo>();
     qRegisterMetaType<QList<NodeInfo>>();
     qRegisterMetaType<MotorLimits>();
+    qRegisterMetaType<HomingSettings>();
     qRegisterMetaType<Snapshot>();
 
     MainWindow w;
