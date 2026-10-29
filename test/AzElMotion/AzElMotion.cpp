@@ -1,10 +1,22 @@
 /*
  * Azimuth/Elevation turret motion package
  *
-
-vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
- *    This program finds SC4-HUBs connected to this computer and opens the first port found.
- *    Next, the program enables the first two Nodes, then commands a series of synchronized
+ * This program finds SC4-HUBs connected to this computer by USB and opens the
+ *  first Port (i.e., Hub) found.
+ * Next, the program enables the first two Nodes (i.e., Servos) that it finds,
+ *  then homes both of these. This code assumes that the first Servo will drive
+ *  the Azimuth axis, and the second Servo will drive the Elevation axis.
+ * The platform starts off in the uninitalized state and is initialized and the
+ *  axes are homed by the constructor method.
+ * The platform can be in one of the following states: Uninitialized,
+ *  Initializing, Homing, and Operating.
+ * A settings structure is provided for each axis, that defines: the max speed
+ *  and acceleration for each motion mode (i.e., Homing or Operating), any
+ *  offsets from the axis' index sensor to be applied when homing, and the max
+ *  amount of msec that homing each axis should take.
+ * 
+ vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+ commands a series of synchronized
  *    positional moves to both motors in both directions.
  *    The positional moves are sent using the provided helper function: `synchronizedMove` which can command positional
  *    motion on two or more nodes at the same time. More details are available in that funcitons docstring.
@@ -24,6 +36,16 @@ vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
  *    The Acceleration Limit (rpm/s) and Velocity Limit (rpm) of both Nodes can
  *     be modified using macros ACC_LIM_RPM_PER_SEC and VEL_LIM_RPM
  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ *
+ * Notes:
+ *  - all rotations are defined in radians, unless explicitly called out as degrees
+ *  - acceleration is defined in terms of RPM/s -- consider changing to N-m
+ *  - ?
+ *
+ * TBD:
+ *  - make file with servo specs, read device type and look up specs from file -- use this to validate settings
+ *  - ?
+ *
  */
 
 #include <stdio.h>  
@@ -36,6 +58,7 @@ namespace azelmotion {
 AzElMotion::AzElMotion(AxisSettings& azSettings, AxisSettings& elSettings) {
     _azAxisSettings = azSettings;
     _elAxisSettings = elSettings;
+    _mode = AzElMode::Initializing;
 
     //// FIXME improve this
     if (validateAxisSettings(_azAxisSettings) or validateAxisSettings(_elAxisSettings)) {
@@ -78,7 +101,7 @@ AzElMotion::AzElMotion(AxisSettings& azSettings, AxisSettings& elSettings) {
         _printNodeInfo(_elNode);
 
         // configure homing acceleration and velocity limits for both axes' servos
-        _configAxes(AzElMode::Homing);
+        _configAxes(false);
 
         // clear potential Alerts and NodeStops before enabling the servos
         _clearAxes();
@@ -117,7 +140,6 @@ AzElMotion::AzElMotion(AxisSettings& azSettings, AxisSettings& elSettings) {
         shutdown();
         throw std::runtime_error("Failed to initialize AzElMotion");
     }
-    _initialized = true;
 
     // home both axes
     if (home()) {
@@ -139,7 +161,8 @@ bool AzElMotion::validateAxisSettings(AxisSettings& axisSettings) {
 // Shut down system by disabling servos and closing the port
 void AzElMotion::shutdown() {
     printf("Shutting down...\n");
-    if (_initialized) {
+    //// FIXME add stop of both servos?
+    if ((_mode == AzElMode::Homing) || (_mode == AzElMode::Operating)) {
         _azNode->EnableReq(false);
         _elNode->EnableReq(false);
         _sysMgr->PortsClose();
@@ -147,12 +170,12 @@ void AzElMotion::shutdown() {
     _azNode = nullptr;
     _elNode = nullptr;
     _sysMgr = nullptr;
-    _initialized = false;
+    _mode = AzElMode::Uninitialized;
 };
 
 // Home both axes
 bool AzElMotion::home() {
-    if (!_initialized) {
+    if (_mode == AzElMode::Uninitialized) {
         _msgUser("Error: not initialized, can't home axes");
         return true;
     }
@@ -162,7 +185,7 @@ bool AzElMotion::home() {
 
     char msg[180];
     (void)std::snprintf(msg, sizeof(msg),
-                        "Home both axes and then offset Az=%.2f El=%.2f -- ",
+                        "Home both axes and then offset Az=%.2f El=%.2f\n",
                         _azAxisSettings.homeOffset, _elAxisSettings.homeOffset);
     _msgUser(msg);
 
@@ -225,6 +248,9 @@ bool AzElMotion::home() {
                 printf("Numberspace changed, current position: %.0f\n", mynode->Motion.PosnMeasured.Value());
                 */
             }
+        } else {
+            printf("Homing settings not valid\n");
+            throw std::runtime_error("Homing settings must be defined with the cpview application");
         }
         printf("Homed an axis: %s\n", axisName);
         _mode = AzElMode::Operating;
@@ -243,19 +269,21 @@ void AzElMotion::_clearAxes() {
     _elNode->Status.AlertsClear();
 };
 
-// Configure the settings for both axes for the given mode
-void AzElMotion::_configAxes(AzElMode mode) {
-    _mode = mode;
+// Configure either the operating or homing settings for both axes
+void AzElMotion::_configAxes(bool operSettings) {
+    if (_mode == AzElMode::Uninitialized) {
+        throw std::runtime_error("Can't configure axes when in Uninitialized mode");
+    }
 
     _azNode->AccUnit(sFnd::INode::RPM_PER_SEC);  // set units for Acceleration to RPM/SEC
     _azNode->VelUnit(sFnd::INode::RPM);          // set units for Velocity to RPM
-    _azNode->Motion.AccLimit = (_mode == AzElMode::Homing) ? _azAxisSettings.homeAccLimit : _azAxisSettings.operAccLimit;
-    _azNode->Motion.VelLimit = (_mode == AzElMode::Homing) ? _azAxisSettings.homeVelLimit : _azAxisSettings.operVelLimit;
+    _azNode->Motion.AccLimit = (operSettings ? _azAxisSettings.operAccLimit : _azAxisSettings.homeAccLimit);
+    _azNode->Motion.VelLimit = (operSettings ? _azAxisSettings.operVelLimit : _azAxisSettings.homeVelLimit);
 
     _elNode->AccUnit(sFnd::INode::RPM_PER_SEC);  // set units for Acceleration to RPM/SEC
     _elNode->VelUnit(sFnd::INode::RPM);          // set units for Velocity to RPM
-    _elNode->Motion.AccLimit = (_mode == AzElMode::Homing) ? _elAxisSettings.homeAccLimit : _elAxisSettings.operAccLimit;
-    _elNode->Motion.VelLimit = (_mode == AzElMode::Homing) ? _elAxisSettings.homeVelLimit : _elAxisSettings.operVelLimit;
+    _elNode->Motion.AccLimit = (operSettings ? _elAxisSettings.operAccLimit : _elAxisSettings.homeAccLimit);
+    _elNode->Motion.VelLimit = (operSettings ? _elAxisSettings.operVelLimit : _elAxisSettings.homeVelLimit);
 };
 
 // Enable both axes

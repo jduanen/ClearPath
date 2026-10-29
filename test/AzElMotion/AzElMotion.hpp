@@ -14,6 +14,8 @@
 namespace azelmotion {
 
 enum class AzElMode {
+    Uninitialized,
+    Initializing,
     Homing,
     Operating
 };
@@ -31,13 +33,12 @@ private:
     std::vector<std::string> _comHubPorts;
     sFnd::INode* _azNode = nullptr;
     sFnd::INode* _elNode = nullptr;
-    bool _initialized = false;
     AxisSettings _azAxisSettings = {0.0};
     AxisSettings _elAxisSettings = {0.0};
-    AzElMode _mode = AzElMode::Homing;
+    AzElMode _mode = AzElMode::Uninitialized;
 
     void _clearAxes();
-    void _configAxes(AzElMode mode);
+    void _configAxes(bool);
     void _enableAxes();
     void _disableAxes();
     void _msgUser(const char* msg, bool flush=true);
