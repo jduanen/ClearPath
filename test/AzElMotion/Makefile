@@ -36,6 +36,7 @@ AzElMotionTest: $(ALL_OBJS)
 .PHONY: clean
 clean:
 	-find . -type f -name "*.o" -delete
+	rm AzElMotionTest
 
 # Destroy all build artifacts, including the executable
 .PHONY: real_clean
