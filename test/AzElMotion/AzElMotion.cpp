@@ -51,6 +51,9 @@
 #include <stdio.h>  
 #include <functional>
 #include <iostream>
+#include <exception>
+#include <spdlog/spdlog.h>
+
 #include "AzElMotion.hpp"
 
 namespace azelmotion {
@@ -62,7 +65,7 @@ AzElMotion::AzElMotion(AxisSettings& azSettings, AxisSettings& elSettings) {
 
     //// FIXME improve this
     if (validateAxisSettings(_azAxisSettings) or validateAxisSettings(_elAxisSettings)) {
-        printf("Invalid axis setting\n");
+        spdlog::error("Invalid axis setting");
         throw std::runtime_error("Invalid axis setting");
     }
 
@@ -74,7 +77,7 @@ AzElMotion::AzElMotion(AxisSettings& azSettings, AxisSettings& elSettings) {
 
         //// FIXME test for more than one and fail if < 1 or > 1
         if (_comHubPorts.empty()) {
-            printf("No SC4-HUB's found -- check that an SC4-HUB is connected via USB and has 24V power\n");
+            spdlog::error("No SC4-HUB's found -- check that an SC4-HUB is connected via USB and has 24V power");
             throw std::runtime_error("Failed to find an SC4-HUB");
         }
 
@@ -82,12 +85,12 @@ AzElMotion::AzElMotion(AxisSettings& azSettings, AxisSettings& elSettings) {
         _sysMgr->ComHubPort(0, _comHubPorts[0].c_str());
         _sysMgr->PortsOpen(1);
         sFnd::IPort& firstPort = _sysMgr->Ports(0);
-        printf("First Port[%d]: state=%d, nodes=%d\n",
-               firstPort.NetNumber(), firstPort.OpenState(), firstPort.NodeCount());
+        spdlog::debug("First Port[{}]: state={}, nodes={}", firstPort.NetNumber(),
+                      static_cast<int>(firstPort.OpenState()), firstPort.NodeCount());
 
         // ensure there are 2 nodes connected to this port
         if (firstPort.NodeCount() != 2) {
-            printf("Need 2 Nodes, but found %d\n", firstPort.NodeCount());
+            spdlog::error("Need 2 Nodes, but found %d\n", firstPort.NodeCount());
             _sysMgr->PortsClose();
             throw std::runtime_error("Didn't find two servos");
         }
@@ -114,29 +117,30 @@ AzElMotion::AzElMotion(AxisSettings& azSettings, AxisSettings& elSettings) {
         while (!_azNode->Motion.IsReady() || !_elNode->Motion.IsReady()) {
             if (_sysMgr->TimeStampMsec() > timeout) {
                 if (!_azNode->Motion.IsReady()) {
-                    printf("Error: Timed out waiting for Node 0 to enable\n");
+                    spdlog::error("Timed out waiting for Node 0 to enable");
                 }
                 if (!_elNode->Motion.IsReady()) {
-                    printf("Error: Timed out waiting for Node 1 to enable\n");
+                    spdlog::error("Timed out waiting for Node 1 to enable");
                 }
-                printf("Ensure each Node has bus power and has no alerts.\n");
+                spdlog::info("Ensure each Node has bus power and has no alerts");
                 shutdown();
                 throw std::runtime_error("Failed to enable both servos");
             }
         }
-        printf("Nodes enabled successfully\n");
+        spdlog::debug("Nodes enabled successfully");
     }
     catch (sFnd::mnErr& theErr) {  // this will intercept any error from the Class library
         switch (theErr.ErrorCode) {
         case MN_ERR_PORT_FAILED_PORTS_0:
-            printf("Port failed to open. Ensure that ClearView or any other application is not using the port.\n");
+            spdlog::error("Port failed to open. Ensure that ClearView or any other application is not using the port");
             break;
         case MN_ERR_INIT_FAILED_PORTS_0:
-            printf("Port failed to initialize. Ensure that 2 ClearPath SC servos are powered and connected to the SC4-HUB and the jumpers are installed correctly on the SC4-HUB\n");
+            spdlog::error("Port failed to initialize. Ensure that 2 ClearPath SC servos are powered and connected to the SC4-HUB and the jumpers are installed correctly on the SC4-HUB");
             break;
         }
 
-        printf("Caught error: addr=%d, err=0x%08x\nmsg=%s\n", theErr.TheAddr, theErr.ErrorCode, theErr.ErrorMsg);
+        spdlog::error("Caught error: addr={}, err=0x{:08x}, msg={}", theErr.TheAddr,
+                      static_cast<unsigned int>(theErr.ErrorCode), theErr.ErrorMsg);
         shutdown();
         throw std::runtime_error("Failed to initialize AzElMotion");
     }

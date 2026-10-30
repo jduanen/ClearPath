@@ -13,6 +13,10 @@ DEBUG_CXXFLAGS := $(CXXFLAGS) -Wall -Wextra -pedantic -g3 $(DEBUG_OPTIMIZATION)
 CXXFLAGS += -g -O1 -fsanitize=address -fno-omit-frame-pointer
 LDFLAGS += -fsanitize=address
 
+# for spdlog
+CPPFLAGS += $(shell pkg-config --cflags spdlog)
+LDLIBS += $(shell pkg-config --libs spdlog)
+
 # Specify source files here
 ALL_SRC_FILES := $(wildcard *.cpp)
 ALL_OBJS := $(patsubst %.cpp,%.o,$(ALL_SRC_FILES))

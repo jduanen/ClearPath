@@ -6,6 +6,8 @@
 
 #include <stdio.h>  
 #include <iostream>
+#include <spdlog/spdlog.h>
+
 #include "AzElAxisSettings.hpp"
 #include "AzElMotion.hpp"
 
@@ -38,8 +40,14 @@ void printMsgWait(const char* msg) {
 };
 
 int main(int argc, char* argv[]) {
+    spdlog::set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] [thread %t] %v");
+    spdlog::set_level(spdlog::level::debug);
+    spdlog::flush_on(spdlog::level::err);
+
     printMsgWait("Az/El Motion Test: press any key to start.");
     azelmotion::AzElMotion turret = azelmotion::AzElMotion(azSettings, elSettings);
     printMsgWait("Az/El Motion Test finished: Press any key to exit.");
+
+    spdlog::shutdown();
     return 0;
 };
