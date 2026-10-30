@@ -156,7 +156,7 @@ bool AzElMotion::validateAxisSettings(AxisSettings& axisSettings) {
     //// FIXME improve this
     if ((axisSettings.homeAccLimit <= 0.0) || (axisSettings.homeVelLimit <= 0.0) || 
         (axisSettings.operAccLimit <= 0.0) || (axisSettings.operVelLimit <= 0.0)) {
-        printf("Invalid acceleration/velocity limits for servo\n");
+        spdlog::error("Invalid acceleration/velocity limits for servo");
         return true;
     }
     return false;
@@ -164,7 +164,7 @@ bool AzElMotion::validateAxisSettings(AxisSettings& axisSettings) {
 
 // Shut down system by disabling servos and closing the port
 void AzElMotion::shutdown() {
-    printf("Shutting down...\n");
+    spdlog::info("Shutting down");
     //// FIXME add stop of both servos?
     if ((_mode == AzElMode::Homing) || (_mode == AzElMode::Operating)) {
         _azNode->EnableReq(false);
@@ -180,36 +180,31 @@ void AzElMotion::shutdown() {
 // Home both axes
 bool AzElMotion::home() {
     if (_mode == AzElMode::Uninitialized) {
-        _msgUser("Error: not initialized, can't home axes");
+        spdlog::error("System not initialized, can't home axes");
         return true;
     }
     _mode = AzElMode::Homing;
-
-    _msgUserAck("Motion will occur on the Az and El servos at speeds up to 500RPM. Press Enter to start homing.");
-
-    char msg[180];
-    (void)std::snprintf(msg, sizeof(msg),
-                        "Home both axes and then offset Az=%.2f El=%.2f\n",
-                        _azAxisSettings.homeOffset, _elAxisSettings.homeOffset);
-    _msgUser(msg);
+    spdlog::info("Home both axes and then offset Az={:.2f} El={:.2f}", 
+                _azAxisSettings.homeOffset, _elAxisSettings.homeOffset);
 
     // servos enabled, see if homing has been setup properly for both of them
     for (auto* node : {_azNode, _elNode}) {
         if (node == nullptr) {
-            printf("Invalid node\n");    //// FIXME
+            spdlog::error("Invalid node");    //// FIXME
             return true;
         }
         const char *axisName = (node == _azNode) ? "Az" : "El";
-        printf(">>>> Homing: %s\n", axisName);
+        spdlog::debug("Start homing on {} axis", axisName);
         if (node->Motion.Homing.HomingValid()) {
             // check if the node has already been homed
             if (node->Motion.Homing.WasHomed()) {
                 node->Motion.PosnMeasured.Refresh();  // refresh the current measured position
-                printf("%s axis has already been homed, current position is: %.0f\n",
-                       axisName, node->Motion.PosnMeasured.Value());
-                printf("Rehoming %s axis... \n", axisName);
+                spdlog::error("{} axis has already been homed, current position is: {:.0f}",
+                              axisName, node->Motion.PosnMeasured.Value());
+                spdlog::debug("Rehoming {} axis", axisName);
             } else {
-                printf("%s axis has not been homed. Homing %s axis now...\n", axisName, axisName);
+                spdlog::debug("{} axis has not been homed. Start homing {} axis now",
+                              axisName, axisName);
             }
             node->Motion.Homing.Initiate();
 
@@ -220,23 +215,26 @@ bool AzElMotion::home() {
                 if (node->Status.RT.Value().cpm.AlertPresent || 
                     node->Status.RT.Value().cpm.MoveCanceled || 
                     (_sysMgr->TimeStampMsec() > homingTimeout)) {
-                    printf("%s Axis did not complete homing:\n", axisName);
+                    spdlog::debug("{} axis did not complete homing", axisName);
                     if (node->Status.RT.Value().cpm.AlertPresent) {
-                        printf("\tan alert is present: Check for alerts/shutdowns\n");
+                        spdlog::debug("\tan alert is present: Check for alerts/shutdowns");
                     } else if (node->Status.RT.Value().cpm.MoveCanceled) {
-                        printf("\tmove was canceled.\n");
+                        spdlog::debug("\tmove was canceled");
                     } else if (_sysMgr->TimeStampMsec() > homingTimeout) {
-                        printf("\ttimeout reached: ensure HOMING_TIMEOUT is longer than the longest possible homing move.\n");
+                        spdlog::debug("\ttimeout reached: ensure homing timeout is longer than the longest possible homing move");
                     }
 
-                    printf("failed to home %s axis, shutting down\n", axisName);
+                    spdlog::error("failed to home {} axis, shutting down", axisName);
                     shutdown();
                     return true;
                 }
-                node->Motion.PosnMeasured.Refresh();  // refresh our current measured position
-                printf("%s axis completed homing, current position: %.0f\n",
-                       axisName, node->Motion.PosnMeasured.Value());
-                printf("Soft limits now active, if configured.\n");
+
+                // refresh current measured position of axis
+                node->Motion.PosnMeasured.Refresh();
+                
+                spdlog::debug("{} axis completed homing, current position: {:.0f}",
+                              axisName, node->Motion.PosnMeasured.Value());
+                spdlog::debug("Soft limits now active, if configured");
 
                 // If you need to change the measured position to a different number after homing: reference the code below     
                 /*
@@ -253,20 +251,19 @@ bool AzElMotion::home() {
                 */
             }
         } else {
-            printf("Homing settings not valid\n");
+            spdlog::error("Homing settings not valid: define them with cpview");
             throw std::runtime_error("Homing settings must be defined with the cpview application");
         }
-        printf("Homed an axis: %s\n", axisName);
+        spdlog::debug("Homed {} axis", axisName);
         _mode = AzElMode::Operating;
     }
-
-    _msgUser("Homing done\n");
+    spdlog::debug("Done homing both axes");
     return false;
 };
 
 // Clear any stops and alerts on both axes
 void AzElMotion::_clearAxes() {
-    printf("Clearing any NodeStops then Alerts...\n");
+    spdlog::debug("Clearing any NodeStops and Alerts");
     _azNode->Motion.NodeStopClear();
     _elNode->Motion.NodeStopClear();
     _azNode->Status.AlertsClear();
@@ -292,7 +289,7 @@ void AzElMotion::_configAxes(bool operSettings) {
 
 // Enable both axes
 void AzElMotion::_enableAxes() {
-    printf("Waiting for both nodes to enable...\n");
+    spdlog::debug("Waiting for both nodes to enable");
     _azNode->EnableReq(true);
     _elNode->EnableReq(true);
     //// FIXME what else here?
@@ -300,7 +297,7 @@ void AzElMotion::_enableAxes() {
 
 // Disable both axes
 void AzElMotion::_disableAxes() {
-    printf("Disabling both nodes...\n");
+    spdlog::debug("Disabling both nodes");
     _azNode->EnableReq(false);
     _elNode->EnableReq(false);
     //// FIXME what else here?
@@ -349,7 +346,7 @@ void AzElMotion::_printNodeInfo(sFnd::INode* node) {
 bool AzElMotion::_synchronizedMove(std::vector<std::reference_wrapper<sFnd::INode>> nodes,
                                    std::vector<bool> reverseNodeDirection,
                                    int target, bool targetIsAbsolute) {
-    _msgUser("synchronizedMove");
+    spdlog::debug("_synchronizedMove: TBD");
     return true;
 };
 

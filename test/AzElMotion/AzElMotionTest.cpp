@@ -21,7 +21,7 @@ azelmotion::AxisSettings azSettings = {
     4000,   // operating acceleration Limit (RPM/s)
     2000,   // operating velocity Limit in (RPM)
     0.0,    // home offset (radians)
-    30000   // homing timeout (msec)
+    10000   // homing timeout (msec)
 };
 
 azelmotion::AxisSettings elSettings = {
@@ -30,7 +30,7 @@ azelmotion::AxisSettings elSettings = {
     4000,   // operating acceleration Limit (RPM/s)
     2000,   // operating velocity Limit (RPM)
     0.0,    // home offset (radians)
-    15000   // homing timeout (msec)
+    10000   // homing timeout (msec)
 };
 
 // Send message and wait for newline
