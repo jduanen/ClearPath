@@ -26,6 +26,9 @@ struct MotorLimits {
 // CPM_P_XPS_FEAT_AT_HOME values, decoded from ClearView-saved .mtr files
 // (status register bits InA..InvInB, shifted down 16).
 enum : unsigned { HOME_IN_A_ON = 0x0040, HOME_IN_B_ON = 0x0080, HOME_IN_A_OFF = 0x0100, HOME_IN_B_OFF = 0x0200 };
+// CPM_P_XPS_OUT_SRC_REG bit that ClearView sets for change-of-input homing; without
+// it the node ignores the home input (found by comparing registers after a ClearView home).
+constexpr unsigned XPS_OUT_SRC_HOME_INPUT = 0x0800;
 
 // Homing setup, as in ClearView's Homing Setup dialog.
 struct HomingSettings {

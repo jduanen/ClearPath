@@ -193,6 +193,7 @@ the homing sequence.
 | Max accel (RPM/s) | `CPM_P_APP_HOMING_ACCEL` (514) | Stored in counts/s²; same scaling |
 | Target: change of input / hard stop | `CPM_P_HW_CONFIG_REG` bit 14 (`HomingStyle`) | Set means hard stop |
 | Home input (A or B, turns on or off) | `CPM_P_XPS_FEAT_AT_HOME` (563) | See the table below. Set to 0 for a hard stop |
+| (no dialog control) | `CPM_P_XPS_OUT_SRC_REG` (545) bit 11 (`0x0800`) | Set for change of input, cleared for a hard stop. Without it the node ignores the home input and homing never ends; see the notes |
 | Homing torque limit (% of max) | `CPM_P_DRV_HARDSTOP_TRQ_LIM` (363) | Stored in amps; % = amps × 100 / `CPM_P_DRV_I_MAX` (the same scale as the torque unit "% of max") |
 | Offset distance (cnts) | `CPM_P_APP_HOMING_OFFSET` (513) | Always positive. The label beside it shows the resulting direction |
 | Offset direction reverse of / same as home | `CPM_P_APP_CONFIG_REG` bit 16 (`OffsetMoveInHomeDir`) | Set means same as home |
@@ -218,6 +219,10 @@ Notes:
   mode as it is.
 - ClearView's Homing Actions window (simulated homing, "make current position home")
   is not reproduced.
+- `CPM_P_XPS_OUT_SRC_REG` bit 11 is also undocumented. Every ClearView file with a
+  home input has `XPSOutSrcReg = &H0800`. With everything else matching, homing to the
+  switch ran forever while the register was 0, and worked after ClearView set it.
+  Untested: that ClearView clears it for a hard stop (a node set to hard stop had it at 0).
 - Untested: whether ClearView also clears the home input when you choose Hard Stop.
   cpview clears it, so a leftover input can't end a hard-stop home early.
 - Untested: whether the node accepts these writes while it's enabled. If it refuses,

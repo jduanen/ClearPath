@@ -318,6 +318,9 @@ void MotorWorker::writeHoming(const HomingSettings &h) {
             ex.Parameter(nodeparam(CPM_P_DRV_HARDSTOP_TRQ_LIM), h.hardStopTrqPct / 100.0 * iMax);
         // No home input when homing to a hard stop
         ex.Parameter(nodeparam(CPM_P_XPS_FEAT_AT_HOME), h.hardStop ? 0 : h.inputBits);
+        unsigned outSrc = unsigned(ex.Parameter(nodeparam(CPM_P_XPS_OUT_SRC_REG)));
+        outSrc = h.hardStop ? outSrc & ~XPS_OUT_SRC_HOME_INPUT : outSrc | XPS_OUT_SRC_HOME_INPUT;
+        ex.Parameter(nodeparam(CPM_P_XPS_OUT_SRC_REG), outSrc);
 
         mnAppConfigReg dir{}, offs{};
         dir.cpm.HomingDirection = 1;
